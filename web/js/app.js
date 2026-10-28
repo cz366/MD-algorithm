@@ -100,14 +100,20 @@
     }));
   }
 
+  var LEVEL_LABEL = { critical: "Critical", warning: "Warning", normal: "Normal", invalid: "Not reported" };
+
   function interpretation(r) {
     var a = r.assessment;
-    var body = [h("h3", { text: a.title }), h("p", { text: a.detail })];
+    var body = [
+      h("span", { class: "eyebrow " + a.level, text: LEVEL_LABEL[a.level] }),
+      h("h3", { text: a.title }),
+      h("p", { text: a.detail })
+    ];
     if (a.checks.length) {
       body.push(h("ul", {}, a.checks.map(function (c) { return h("li", { text: c }); })));
     }
     r.caveats.forEach(function (c) { body.push(h("p", { class: "caveat", text: c })); });
-    return h("div", { class: "panel interp " + a.level }, [h("div", { class: "interp-bar" }), h("div", {}, body)]);
+    return h("div", { class: "panel interp" }, body);
   }
 
   function legend(items) {
@@ -277,12 +283,12 @@
     });
     return h("div", { class: "panel" }, [
       h("div", { class: "panel-head" }, [h("h3", { text: "Samples" }), h("span", { class: "sub", text: "Select a row to view it" })]),
-      h("div", { class: "table-wrap" }, [h("table", {}, [
+      h("div", { class: "panel-body" }, [h("div", { class: "table-wrap" }, [h("table", {}, [
         h("thead", {}, [h("tr", {}, [
           th("Time"), th("Glucose", "mmol/L"), th("Lactate", "mmol/L"), th("Pyruvate", "µmol/L"), th("LPR"), th("Assessment", null, { class: "left" })
         ])]),
         h("tbody", {}, rows)
-      ])])
+      ])])])
     ]);
   }
 
@@ -431,7 +437,9 @@
       "Check the fit. If the residual is more than " + model.qualityLimit + "× the noise, the sample contains something the model does not know and no values are reported.",
       "Compute LPR = lactate / pyruvate. If pyruvate is below the detection limit (" + lod.toFixed(0) + " µmol/L), LPR is shown as a lower bound.",
       "Compare each value with the thresholds below."
-    ].map(function (t) { return h("li", { text: t }); }))]));
+    ].map(function (t, i) {
+      return h("li", {}, [h("span", { class: "step-n", text: "Step " + (i + 1) }), t]);
+    }))]));
 
     // reference spectra
     var refChart = h("div");
@@ -468,7 +476,7 @@
         MDChart.render(box, {
           height: 200,
           series: [
-            { x: [0, xmax], y: [c.intercept, c.intercept + c.slope * xmax], color: "var(--border-strong)", width: 1, noHover: true },
+            { x: [0, xmax], y: [c.intercept, c.intercept + c.slope * xmax], color: "var(--separator)", width: 1, noHover: true },
             { x: xs, y: c.points.map(function (p) { return p.mean; }), color: COLORS[a], line: false, points: true, label: "Absorbance", format: function (v) { return v.toFixed(4); } }
           ],
           x: { label: "Concentration (mM)", min: 0, format: function (v) { return v.toFixed(0); }, hoverFormat: function (v) { return v + " mM"; } },

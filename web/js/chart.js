@@ -178,7 +178,10 @@
         s.x.forEach(function (xv, i) {
           if (s.y[i] === null || !isFinite(s.y[i])) return;
           var hollow = s.hollow ? s.hollow[i] : false;
-          el("circle", { cx: sx(xv), cy: sy(s.y[i]), r: s.radius || 3.5, class: "chart-point", style: "stroke:" + color + ";fill:" + (hollow ? "var(--surface)" : color) }, svg);
+          el("circle", {
+            cx: sx(xv), cy: sy(s.y[i]), r: hollow ? 3.5 : 4.5, class: "chart-point",
+            style: hollow ? "stroke:" + color + ";fill:var(--surface)" : "stroke:var(--surface);fill:" + color
+          }, svg);
         });
       }
     });
