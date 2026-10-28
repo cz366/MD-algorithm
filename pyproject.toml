@@ -1,0 +1,11 @@
+[project]
+name = "mdalgo"
+version = "0.1.0"
+description = "Glucose, lactate and pyruvate from mid-IR spectra of cerebral microdialysate"
+authors = [{ name = "cz366" }]
+requires-python = ">=3.9"
+dependencies = ["numpy>=1.24"]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]
