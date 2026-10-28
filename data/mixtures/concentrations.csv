@@ -1,0 +1,11 @@
+sample,glucose_mM,lactate_mM,pyruvate_mM
+SampleA,3,5,0.02
+SampleB,1.5,3,0.14
+SampleC,1,2.5,0.11
+SampleD,0.6,2,0.09
+SampleE,0.1,0.2,0.03
+GLU_1mM,1,0,0
+LAC_1mM,0,1,0
+PYR_1mM,0,0,1
+mix(GLP)_1mM,1,1,1
+PF,0,0,0
