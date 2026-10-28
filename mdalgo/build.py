@@ -34,7 +34,7 @@ MIXTURE_LABELS = {
 TEST_MIXTURES = ["SampleA", "SampleB", "SampleC", "SampleD", "SampleE"]
 
 # Demo for the web app: one bed on continuous monitoring. Every reading is a
-# measured spectrum of a lab mixture (data/mixtures); only the bed and the
+# measured spectrum of a synthetic mixture (data/mixtures); only the bed and the
 # times are made up. The last reading (mixture E) is the flagged one.
 DEMO_BED = "Bed 1"
 DEMO_READINGS = ["SampleB_r1", "SampleB_r2", "SampleB_r3", "SampleC_r1", "SampleC_r2", "SampleC_r3", "SampleE_r1"]

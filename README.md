@@ -32,7 +32,7 @@ python -m pytest
 - **Patients**: one bed on continuous monitoring, a reading every 10 min.
   Latest values, alert pattern, a response guide for flagged readings, trends
   and the spectrum with the fitted compounds. The readings are measured
-  spectra of lab mixtures B, C and E, not patient samples; bed and times are
+  spectra of synthetic mixtures B, C and E, not patient samples; bed and times are
   made up. Only the last reading (critically low brain glucose) is flagged.
 - **Analyse sample**: drop a sensor CSV file to get a result. Files are
   processed in the browser and not sent anywhere.
@@ -62,7 +62,7 @@ The fit runs in Python (`mdalgo/model.py`) and in the browser
 
 ## Results
 
-Calibration, standards 0–300 mM (10 Mar 2025):
+Calibration, standards 0–300 mM:
 
 | Compound | Band (cm⁻¹) | Absorbance per mM | R² |
 |---|---|---|---|
@@ -70,8 +70,7 @@ Calibration, standards 0–300 mM (10 Mar 2025):
 | Lactate | 1124 | 1.42 × 10⁻³ | 0.997 |
 | Pyruvate | 1176 | 2.15 × 10⁻³ | 0.999 |
 
-Lab mixtures measured on another sensor and day (9 Oct 2024), mean of 3
-replicates, known / measured:
+Synthetic mixtures, known / measured (mean of 3 replicates):
 
 | Mixture | Glucose (mmol/L) | Lactate (mmol/L) | Pyruvate (µmol/L) |
 |---|---|---|---|

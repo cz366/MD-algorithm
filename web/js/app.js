@@ -482,7 +482,7 @@
 
     // reference spectra
     var refChart = h("div");
-    root.appendChild(panel("Reference spectra", "Absorbance per mM from standards of 0–" + model.maxStandard + " mM, 3 replicates each (10 Mar 2025)", [
+    root.appendChild(panel("Reference spectra", "Absorbance per mM from standards of 0–" + model.maxStandard + " mM, 3 replicates each", [
       legend(ANALYTES.map(function (a) { return { label: NAMES[a], color: COLORS[a] }; })), refChart
     ]));
     requestAnimationFrame(function () {
@@ -539,7 +539,7 @@
         .concat(pair(lprK, lprM, 0))
         .concat([h("td", { text: row.quality.toFixed(1) })]));
     });
-    root.appendChild(panel("Validation: lab mixtures", "Measured 9 Oct 2024 on a different sensor and day from the standards. Mean of 3 replicates.", [
+    root.appendChild(panel("Validation: synthetic mixtures", null, [
       h("div", { class: "table-wrap" }, [h("table", {}, [
         h("thead", {}, [
           h("tr", {}, [h("th", { text: "" }), th("Glucose", "mmol/L", { colspan: "2" }), th("Lactate", "mmol/L", { colspan: "2" }), th("Pyruvate", "µmol/L", { colspan: "2" }), h("th", { colspan: "2", text: "LPR" }), h("th", { text: "Fit" })]),
@@ -556,7 +556,7 @@
     root.appendChild(panel("Pyruvate at low concentration", "Dilution series 0–1 mM, 3 replicates", [
       legend([{ label: "Measured (mean)", color: COLORS.pyruvate }, { label: "Measured = prepared", color: "var(--faint)", dashed: true }]),
       pyChart,
-      h("p", { class: "note", text: "Detection limit " + lod.toFixed(0) + " µmol/L (3.3 × SD of the residuals, 0–0.25 mM). This series read " + py.slope.toFixed(2) + "× the prepared concentration, while the 1 mM pyruvate standard of 9 Oct 2024 read " + validation.mixtures.filter(function (r) { return r.sample === "PYR_1mM"; })[0].measured.pyruvate.toFixed(2) + " mM. Sensitivity changes between sessions: run a 1 mM check standard at the start of each session." })
+      h("p", { class: "note", text: "Detection limit " + lod.toFixed(0) + " µmol/L (3.3 × SD of the residuals, 0–0.25 mM). This series read " + py.slope.toFixed(2) + "× the prepared concentration, while the 1 mM pyruvate standard run with the mixtures read " + validation.mixtures.filter(function (r) { return r.sample === "PYR_1mM"; })[0].measured.pyruvate.toFixed(2) + " mM. Sensitivity changes between sessions: run a 1 mM check standard at the start of each session." })
     ]));
     requestAnimationFrame(function () {
       var xs = py.points.map(function (p) { return p.conc * 1000; });
