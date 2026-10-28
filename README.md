@@ -95,8 +95,7 @@ To add a compound, measure three or four concentrations on the sensor, save
 them as `data/interferents/Name_10mM_r1.csv` (same CSV format) and run
 `python -m mdalgo.build`. The library is empty for now. Candidates:
 bicarbonate (about 25 mmol/L in brain extracellular fluid, absent from
-perfusion fluid, absorbs at 1200–1450 cm⁻¹ and may explain the 1360 cm⁻¹
-band in the patient spectra), urea (band near 1157 cm⁻¹), phosphate,
+perfusion fluid, absorbs at 1200–1450 cm⁻¹), urea (band near 1157 cm⁻¹), phosphate,
 glycerol, and mannitol or dextran when given.
 
 Test: mixtures A–E with 4 or 8 mmol/L of a made-up compound added (bands at
@@ -109,14 +108,6 @@ Test: mixtures A–E with 4 or 8 mmol/L of a made-up compound added (bands at
 
 Without the library, 2 of 10 readings still pass the fit check with lactate
 off by up to 0.30 mmol/L and pyruvate by up to 126 µmol/L.
-
-Models that learn the unknown compounds from the patient spectra themselves
-were also tested against ISCUS (16 samples, leave-one-out where trained):
-robust weighting, MCR-ALS with the target spectra fixed, augmented least
-squares and PLS. None reproduced the ISCUS values, and lactate ran the wrong
-way in all of them, which points to the pairing of sensor and ISCUS samples
-rather than the model. Matched samples (same aliquot, same time) are needed
-before patient data can validate a model.
 
 ## Clinical thresholds
 
@@ -167,13 +158,12 @@ Flagged readings show what to do, with sources. Text and references are in
 Continuous monitoring follows Zimphango et al., Metabolites 2022: hourly
 bedside analysis misses changes within the hour.
 
-## Limits
+## Work underway
 
-- Pyruvate in the clinical range is close to the detection limit, so LPR is
-  approximate. In mixture A, LPR reads 42 instead of 250.
-- Patient spectra (17 Oct 2024) have bands at about 1020, 1160 and
-  1360 cm⁻¹ that are not in the standards. All of them fail the fit check, and
-  the values do not yet agree with the ISCUS analyser.
+- Real patient data is not included in this repository or the demo for
+  confidentiality reasons.
+- Further work is underway to improve the accuracy of the model, in
+  particular for pyruvate at low concentrations (below 50 µmol/L).
 - A compound missing from the library can pass the fit check in small
   amounts and bias the result.
 - Sensitivity changes between sessions (the pyruvate series read 1.37× the

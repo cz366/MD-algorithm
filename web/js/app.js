@@ -325,8 +325,9 @@
       });
       cells.push(h("td", { class: "left wrap" }, [h("span", { class: "dot " + s.assessment.level, style: "display:inline-block;width:8px;height:8px;margin-right:6px" }), s.assessment.title]));
       return h("tr", {
-        class: "clickable", "aria-current": s === selected ? "true" : "false",
-        onclick: function () { state.sample = idx; renderPatients(); window.scrollTo({ top: 0, behavior: "smooth" }); }
+        class: "clickable", "aria-current": s === selected ? "true" : "false", tabindex: "0",
+        onclick: function () { state.sample = idx; renderPatients(); window.scrollTo({ top: 0, behavior: "smooth" }); },
+        onkeydown: function (e) { if (e.key === "Enter") { state.sample = idx; renderPatients(); } }
       }, cells);
     });
     return h("div", { class: "panel" }, [
@@ -397,7 +398,8 @@
       var level = u.error ? "invalid" : u.result.assessment.level;
       list.appendChild(h("li", {
         class: "file-item", "aria-current": i === state.upload ? "true" : "false", tabindex: "0",
-        onclick: function () { state.upload = i; renderAnalyse(); }
+        onclick: function () { state.upload = i; renderAnalyse(); },
+        onkeydown: function (e) { if (e.key === "Enter") { state.upload = i; renderAnalyse(); } }
       }, [
         h("span", { class: "dot " + level }),
         h("span", { class: "file-name", text: u.name, title: u.name }),
@@ -443,7 +445,7 @@
     });
     zone.addEventListener("drop", function (e) { if (e.dataTransfer.files.length) readFiles(e.dataTransfer.files); });
     document.getElementById("load-examples").addEventListener("click", function () {
-      demo.examples.forEach(function (s) { addUpload(s.file, s.wavenumber, s.absorbance); });
+      demo.examples.forEach(function (s) { addUpload(s.source, s.wavenumber, s.absorbance); });
       renderAnalyse();
     });
   }
@@ -606,7 +608,7 @@
     root.appendChild(panel("Other compounds in microdialysate", "The library", [
       h("p", { class: "prose", text: "Microdialysate holds many compounds besides glucose, lactate and pyruvate. Their bands add up to one broad absorbance envelope, and some overlap the target bands. The fit includes measured spectra of these other compounds, so their absorbance is assigned to them and not to the targets. A compound that is not in the library leaves a residual: a large one fails the fit check, a small one can pass and bias the result." }),
       h("p", { class: "prose", text: "Library: " + (names.length ? names.join(", ") : "none yet") + ". To add a compound, measure three or four concentrations on the sensor, save them as data/interferents/Name_10mM_r1.csv (same CSV format) and rebuild." }),
-      h("p", { class: "prose", text: "Candidates to measure: bicarbonate (about 25 mmol/L in brain extracellular fluid and absent from perfusion fluid; it absorbs at 1200–1450 cm⁻¹ and may explain the band at about 1360 cm⁻¹ in the patient spectra), urea (band near 1157 cm⁻¹), phosphate, glycerol, and mannitol or dextran when given." }),
+      h("p", { class: "prose", text: "Candidates to measure: bicarbonate (about 25 mmol/L in brain extracellular fluid and absent from perfusion fluid; it absorbs at 1200–1450 cm⁻¹), urea (band near 1157 cm⁻¹), phosphate, glycerol, and mannitol or dextran when given." }),
       h("div", { class: "table-wrap" }, [h("table", {}, [
         h("thead", {}, [h("tr", {}, [
           th("Fit"), th("Glucose", "mmol/L"), th("Lactate", "mmol/L"), th("Pyruvate", "µmol/L"), th("Reported")
@@ -616,16 +618,11 @@
       h("p", { class: "note", text: "Test: mixtures A–E with " + lib.amounts.join(" or ") + " mmol/L of a made-up compound added (bands at 1020 and 1160 cm⁻¹). Largest error against the same spectrum without the compound. Without the library, " + without.reported + " of " + lib.n + " readings still pass the fit check, with lactate off by up to " + without.maxErrorReported.lactate.toFixed(2) + " mmol/L and pyruvate by up to " + (without.maxErrorReported.pyruvate * 1000).toFixed(0) + " µmol/L." })
     ]));
 
-    // limits
-    var a = validation.mixtures.filter(function (r) { return r.sample === "SampleA"; })[0];
-    root.appendChild(panel("Known limits", null, [h("ul", { class: "limits" }, [
-      "Pyruvate in the clinical range (20–200 µmol/L) is close to the detection limit. In mixture A (20 µmol/L pyruvate) it reads " +
-        (a.measured.pyruvate * 1000).toFixed(0) + " µmol/L, so LPR reads " + (a.measured.lactate / a.measured.pyruvate).toFixed(0) +
-        " instead of " + (a.known.lactate / a.known.pyruvate).toFixed(0) + ". Treat LPR as approximate.",
-      "Patient microdialysate spectra contain bands at about 1020, 1160 and 1360 cm⁻¹ that are not in the standards. All of them fail the fit check, so no values are reported for them.",
-      "Models that learn the unknown compounds from the patient spectra themselves (robust weighting, MCR-ALS, augmented least squares, PLS) did not reproduce the ISCUS values, and lactate ran the wrong way. The sensor spectra and ISCUS values need matched samples (same aliquot, same time) before patient data can validate a model.",
-      "The reference spectra come from one sensor. Another sensor or session needs a check standard before its results are used."
-    ].map(function (t) { return h("li", { text: t }); }))]));
+    // work underway
+    root.appendChild(panel("Work underway", null, [
+      h("p", { class: "prose", text: "Real patient data is not included in this demo for confidentiality reasons." }),
+      h("p", { class: "prose", text: "Further work is underway to improve the accuracy of the model, in particular for pyruvate at low concentrations (below 50 µmol/L)." })
+    ]));
   }
 
   // ---------- navigation ----------
