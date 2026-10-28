@@ -7,8 +7,8 @@ import numpy as np
 import pytest
 
 from mdalgo.build import DATA, ROOT, validate_mixtures
-from mdalgo.model import ANALYTES, PEAKS, build_model, fit
-from mdalgo.spectra import load_standards, read_concentrations, read_csv
+from mdalgo.model import ANALYTES, FIT_RANGE, PEAKS, QUALITY_LIMIT, build_model, fit
+from mdalgo.spectra import load_interferents, load_standards, read_concentrations, read_csv
 
 
 @pytest.fixture(scope="module")
@@ -80,3 +80,64 @@ def test_web_fit_matches_python(model):
         for a in ANALYTES:
             assert abs(js[path.name][a] - r[a]) < 1e-5, (path.name, a)
         assert abs(js[path.name]["quality"] - r["quality"]) < 1e-3 * r["quality"]
+
+
+def band(wn, centre, width, height):
+    return height * np.exp(-0.5 * ((wn - centre) / width) ** 2)
+
+
+@pytest.fixture(scope="module")
+def library(tmp_path_factory):
+    """Model with one extra compound in the library (bands at 1020 and 1160 cm-1)."""
+    folder = tmp_path_factory.mktemp("interferents")
+    wn, blank = read_csv(next((DATA / "mixtures").glob("*_PF_r1.csv")))
+    per_mm = band(wn, 1020, 8, 4e-4) + band(wn, 1160, 10, 2e-4)
+    for conc in (0, 5, 10, 20):
+        np.savetxt(folder / f"Testcompound_{conc}mM_r1.csv", np.column_stack([wn, blank + conc * per_mm]),
+                   delimiter=",", header="wavenumber (cm-1),Naperian absorbance", comments="")
+    model = build_model(load_standards(DATA / "standards"), load_interferents(folder))
+    return model, per_mm
+
+
+def spiked_sample(per_mm, conc=8.0):
+    wn, a = read_csv(next((DATA / "mixtures").glob("*_SampleB_r1.csv")))
+    return wn, a, a + conc * per_mm
+
+
+def test_library_recovers_targets(model, library):
+    """An overlapping compound in the library is fitted, not mistaken for the targets."""
+    lib_model, per_mm = library
+    assert lib_model["components"] == ["glucose", "lactate", "pyruvate", "testcompound"]
+    wn, clean, spiked = spiked_sample(per_mm)
+    assert not fit(wn, spiked, model)["fit_ok"]
+    r, ref = fit(wn, spiked, lib_model), fit(wn, clean, model)
+    assert r["fit_ok"]
+    assert abs(r["interferents"]["testcompound"] - 8.0) < 1.0
+    for a, tol in (("glucose", 0.05), ("lactate", 0.1), ("pyruvate", 0.05)):
+        assert abs(r[a] - ref[a]) < tol, a
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="node not installed")
+def test_web_fit_matches_python_with_library(library, tmp_path):
+    lib_model, per_mm = library
+    wn, _, spiked = spiked_sample(per_mm)
+    csv = tmp_path / "spiked.csv"
+    np.savetxt(csv, np.column_stack([wn, spiked]), delimiter=",", header="wavenumber (cm-1),Naperian absorbance", comments="")
+    js_model = {
+        "fitRange": list(FIT_RANGE),
+        "qualityLimit": QUALITY_LIMIT,
+        "smoothing": lib_model["smoothing"].tolist(),
+        "wavenumber": lib_model["wavenumber"].tolist(),
+        "references": {a: r.tolist() for a, r in zip(ANALYTES, lib_model["references"])},
+        "interferents": [{"name": n, "reference": r.tolist()}
+                         for n, r in zip(lib_model["components"][3:], lib_model["references"][3:])],
+    }
+    model_json = tmp_path / "model.json"
+    model_json.write_text(json.dumps(js_model))
+    out = subprocess.run(["node", str(ROOT / "tests" / "parity.js"), "--model", str(model_json), str(csv)],
+                         check=True, capture_output=True, text=True)
+    js = json.loads(out.stdout)["spiked.csv"]
+    r = fit(wn, spiked, lib_model)
+    for a in ANALYTES:
+        assert abs(js[a] - r[a]) < 1e-5, a
+    assert abs(js["interferents"]["testcompound"] - r["interferents"]["testcompound"]) < 1e-4

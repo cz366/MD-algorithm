@@ -44,7 +44,8 @@ python -m pytest
 2. Keep 1000–1200 cm⁻¹. Main bands: glucose 1036, lactate 1124, pyruvate 1176 cm⁻¹.
 3. Fit the sample as the sum of the reference spectra (absorbance per mM,
    from standards of 0–50 mM) plus a straight baseline. Concentrations
-   cannot be negative.
+   cannot be negative. Other compounds in the library (see below) are fitted
+   at the same time.
 4. If the fit residual is more than 10× the noise, the spectrum has bands the
    model does not know. No values are reported.
 5. LPR = lactate / pyruvate. If pyruvate is below the detection limit, LPR is
@@ -82,6 +83,40 @@ Synthetic mixtures, known / measured (mean of 3 replicates):
 
 Root-mean-square error: glucose 0.06 mmol/L, lactate 0.14 mmol/L, pyruvate
 54 µmol/L. Pyruvate detection limit: 67 µmol/L.
+
+## Other compounds in microdialysate
+
+Microdialysate holds many compounds besides glucose, lactate and pyruvate.
+Their bands add up to one broad absorbance envelope, and some overlap the
+target bands. The fit includes measured spectra of these compounds (the
+library), so their absorbance is assigned to them and not to the targets.
+
+To add a compound, measure three or four concentrations on the sensor, save
+them as `data/interferents/Name_10mM_r1.csv` (same CSV format) and run
+`python -m mdalgo.build`. The library is empty for now. Candidates:
+bicarbonate (about 25 mmol/L in brain extracellular fluid, absent from
+perfusion fluid, absorbs at 1200–1450 cm⁻¹ and may explain the 1360 cm⁻¹
+band in the patient spectra), urea (band near 1157 cm⁻¹), phosphate,
+glycerol, and mannitol or dextran when given.
+
+Test: mixtures A–E with 4 or 8 mmol/L of a made-up compound added (bands at
+1020 and 1160 cm⁻¹), largest error:
+
+| Fit | Glucose (mmol/L) | Lactate (mmol/L) | Pyruvate (µmol/L) | Reported |
+|---|---|---|---|---|
+| Without the compound in the library | 0.18 | 0.61 | 414 | 2 of 10 |
+| With the compound in the library | 0.02 | 0.07 | 29 | 10 of 10 |
+
+Without the library, 2 of 10 readings still pass the fit check with lactate
+off by up to 0.30 mmol/L and pyruvate by up to 126 µmol/L.
+
+Models that learn the unknown compounds from the patient spectra themselves
+were also tested against ISCUS (16 samples, leave-one-out where trained):
+robust weighting, MCR-ALS with the target spectra fixed, augmented least
+squares and PLS. None reproduced the ISCUS values, and lactate ran the wrong
+way in all of them, which points to the pairing of sensor and ISCUS samples
+rather than the model. Matched samples (same aliquot, same time) are needed
+before patient data can validate a model.
 
 ## Clinical thresholds
 
@@ -139,6 +174,8 @@ bedside analysis misses changes within the hour.
 - Patient spectra (17 Oct 2024) have bands at about 1020, 1160 and
   1360 cm⁻¹ that are not in the standards. All of them fail the fit check, and
   the values do not yet agree with the ISCUS analyser.
+- A compound missing from the library can pass the fit check in small
+  amounts and bias the result.
 - Sensitivity changes between sessions (the pyruvate series read 1.37× the
   prepared value). Run a 1 mM check standard at the start of each session.
 
@@ -152,6 +189,7 @@ Naperian absorbance.
 | `data/standards` | Glucose, lactate and pyruvate 1–300 mM and blanks, 3 replicates (10 Mar 2025) |
 | `data/mixtures` | Mixtures A–E, 1 mM standards and perfusion fluid (9 Oct 2024). Known values in `concentrations.csv` |
 | `data/pyruvate` | Pyruvate 0–1 mM, 3 replicates |
+| `data/interferents` | Other compounds for the library (none yet) |
 | `data/patient` | Not in the repository. Put patient sensor files and `iscus.csv` here to print the comparison with ISCUS |
 
 ## Layout

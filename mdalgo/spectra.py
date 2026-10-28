@@ -70,6 +70,27 @@ def load_standards(folder):
     return standards
 
 
+# Urea_5mM_r1.csv or 09102024_Culpeo51_Urea_5mM_50uLMin_r1.csv
+INTERFERENT_NAME = re.compile(
+    r"^(?:\d{6,8}_[^_]+_)?(?P<name>[A-Za-z][A-Za-z0-9-]*)_(?P<conc>\d+(?:\.\d+)?)mM(?:_.*)?_r(?P<rep>\d+)\.csv$"
+)
+
+
+def load_interferents(folder):
+    """Load standards of other compounds in microdialysate (the library)."""
+    library = []
+    for path in sorted(Path(folder).glob("*.csv")):
+        m = INTERFERENT_NAME.match(path.name)
+        if not m:
+            continue
+        wn, a = read_csv(path)
+        library.append(
+            {"analyte": m.group("name").lower(), "conc": float(m.group("conc")), "rep": int(m.group("rep")),
+             "wavenumber": wn, "absorbance": a, "file": path.name}
+        )
+    return library
+
+
 def sample_name(filename):
     """09102024_Culpeo51_SampleA_r1.csv -> ('SampleA', 1)."""
     m = re.match(r"\d{8}_[^_]+_(?P<name>.+)_r(?P<rep>\d+)\.csv$", filename)

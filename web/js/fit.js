@@ -4,7 +4,18 @@
   "use strict";
 
   var ANALYTES = ["glucose", "lactate", "pyruvate"];
-  var SUBSETS = [[], [0], [1], [2], [0, 1], [0, 2], [1, 2], [0, 1, 2]];
+
+  // Every subset of 0..n-1, by size then in lexicographic order
+  // (the same order as itertools.combinations in mdalgo/model.py).
+  function subsets(n) {
+    var out = [];
+    function combos(k, start, current) {
+      if (current.length === k) { out.push(current.slice()); return; }
+      for (var i = start; i < n; i++) { current.push(i); combos(k, i + 1, current); current.pop(); }
+    }
+    for (var k = 0; k <= n; k++) combos(k, 0, []);
+    return out;
+  }
 
   // Read a sensor CSV: header row(s), then wavenumber and absorbance columns.
   function parseCsv(text) {
@@ -104,15 +115,20 @@
     var idx = [];
     model.wavenumber.forEach(function (v, i) { if (v >= lo && v <= hi) idx.push(i); });
     var grid = idx.map(function (i) { return model.wavenumber[i]; });
-    var refs = ANALYTES.map(function (a) { return idx.map(function (i) { return model.references[a][i]; }); });
+    // Targets first, then the library of other compounds in microdialysate.
+    var library = model.interferents || [];
+    var names = ANALYTES.concat(library.map(function (c) { return c.name; }));
+    var full = ANALYTES.map(function (a) { return model.references[a]; })
+      .concat(library.map(function (c) { return c.reference; }));
+    var refs = full.map(function (r) { return idx.map(function (i) { return r[i]; }); });
     var smoothed = smooth(absorbance, model.smoothing);
     var y = interp(grid, wavenumber, smoothed);
     var ones = grid.map(function () { return 1; });
     var slope = grid.map(function (v) { return (v - (lo + hi) / 2) / (hi - lo); });
 
-    // Non-negative least squares: try every subset of analytes.
+    // Non-negative least squares: try every subset of compounds.
     var best = null;
-    SUBSETS.forEach(function (subset) {
+    subsets(names.length).forEach(function (subset) {
       var cols = subset.map(function (k) { return refs[k]; }).concat([ones, slope]);
       var b = leastSquares(cols, y);
       for (var k = 0; k < subset.length; k++) if (b[k] < 0) return;
@@ -125,14 +141,20 @@
       if (best === null || sse < best.sse) best = { sse: sse, subset: subset, b: b };
     });
 
-    var conc = [0, 0, 0];
+    var conc = names.map(function () { return 0; });
     best.subset.forEach(function (k, j) { conc[k] = best.b[j]; });
     var b0 = best.b[best.subset.length], b1 = best.b[best.subset.length + 1];
     var baseline = slope.map(function (t) { return b0 + b1 * t; });
     var components = {};
-    ANALYTES.forEach(function (a, k) { components[a] = refs[k].map(function (v) { return conc[k] * v; }); });
+    var interferents = {};
+    names.forEach(function (a, k) {
+      components[a] = refs[k].map(function (v) { return conc[k] * v; });
+      if (k >= ANALYTES.length) interferents[a] = conc[k];
+    });
     var fitted = baseline.map(function (v, i) {
-      return v + conc[0] * refs[0][i] + conc[1] * refs[1][i] + conc[2] * refs[2][i];
+      var s = v;
+      for (var k = 0; k < names.length; k++) s += conc[k] * refs[k][i];
+      return s;
     });
 
     var noiseSum = 0, noiseN = 0;
@@ -150,6 +172,7 @@
       glucose: conc[0],
       lactate: conc[1],
       pyruvate: conc[2],
+      interferents: interferents,
       wavenumber: grid,
       measured: y,
       fitted: fitted,

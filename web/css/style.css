@@ -366,6 +366,7 @@ td.wrap { white-space: normal; min-width: 180px; }
 .steps { margin: 0; padding: 0; list-style: none; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
 .steps li { background: var(--fill); border-radius: 14px; padding: 16px 18px 18px; font-size: 16px; }
 .step-n { display: block; color: var(--faint); font-size: 14px; font-weight: 600; margin-bottom: 4px; letter-spacing: 0; }
+.prose { max-width: 820px; margin-bottom: 12px; }
 .note { color: var(--muted); font-size: 14px; margin-top: 14px; letter-spacing: 0; }
 .cal-title { font-size: 18px; font-weight: 600; margin: 4px 0 0 4px; }
 .cal-sub { font-size: 14px; color: var(--muted); margin: 0 0 4px 4px; letter-spacing: 0; }

@@ -13,7 +13,7 @@ from pathlib import Path
 import numpy as np
 
 from .model import ANALYTES, FIT_RANGE, MAX_STANDARD_MM, PEAKS, QUALITY_LIMIT, build_model, fit
-from .spectra import load_standards, read_concentrations, read_csv, sample_name, smooth
+from .spectra import load_interferents, load_standards, read_concentrations, read_csv, sample_name, smooth
 
 ROOT = Path(__file__).resolve().parent.parent
 DATA = ROOT / "data"
@@ -134,6 +134,46 @@ def pyruvate_series(model, max_conc=0.25):
     return {"points": points, "slope": slope, "intercept": intercept, "r2": r2, "lod": float(3.3 * sd)}
 
 
+# Made-up compound for the library test: (centre cm-1, width cm-1, absorbance per mM)
+TEST_COMPOUND = ((1020.0, 8.0, 4e-4), (1160.0, 10.0, 2e-4))
+TEST_AMOUNTS = (4.0, 8.0)  # mM added to each mixture
+
+
+def library_test(standards, model):
+    """Mixtures A-E with a made-up compound added (bands at 1020 and 1160 cm-1).
+
+    Compares the fit without and with that compound in the library. Errors are
+    against the fit of the same spectrum without the compound.
+    """
+    blank = next(s for s in standards if s["analyte"] is None)
+    wn = blank["wavenumber"]
+    per_mm = sum(h * np.exp(-0.5 * ((wn - c) / w) ** 2) for c, w, h in TEST_COMPOUND)
+    library = [
+        {"analyte": "test compound", "conc": c, "wavenumber": wn, "absorbance": blank["absorbance"] + c * per_mm}
+        for c in (0.0, 5.0, 10.0, 20.0)
+    ]
+    models = {"without": model, "with": build_model(standards, library)}
+    out = {k: {"maxError": {a: 0.0 for a in ANALYTES}, "reported": 0, "maxErrorReported": {a: 0.0 for a in ANALYTES}}
+           for k in models}
+    n = 0
+    for s in load_folder(DATA / "mixtures"):
+        if s["name"] not in TEST_MIXTURES or s["rep"] != 1:
+            continue
+        clean = fit(s["wavenumber"], s["absorbance"], model)
+        for amount in TEST_AMOUNTS:
+            spiked = s["absorbance"] + amount * np.interp(s["wavenumber"], wn, per_mm)
+            n += 1
+            for key, m in models.items():
+                r = fit(s["wavenumber"], spiked, m)
+                out[key]["reported"] += int(r["fit_ok"])
+                for a in ANALYTES:
+                    err = abs(r[a] - clean[a])
+                    out[key]["maxError"][a] = max(out[key]["maxError"][a], err)
+                    if r["fit_ok"]:
+                        out[key]["maxErrorReported"][a] = max(out[key]["maxErrorReported"][a], err)
+    return {"amounts": TEST_AMOUNTS, "n": n, "results": out}
+
+
 def patient_comparison(model):
     folder = DATA / "patient"
     if not (folder / "iscus.csv").exists():
@@ -160,7 +200,8 @@ def write_js(name, obj):
 
 def main():
     standards = load_standards(DATA / "standards")
-    model = build_model(standards)
+    library = load_interferents(DATA / "interferents") if (DATA / "interferents").is_dir() else []
+    model = build_model(standards, library)
     mixtures, rmse = validate_mixtures(model)
     pyruvate = pyruvate_series(model)
     cal = calibration(standards, model)
@@ -175,11 +216,15 @@ def main():
             "smoothing": sig(model["smoothing"], 12),
             "wavenumber": sig(model["wavenumber"]),
             "references": {a: sig(r) for a, r in zip(ANALYTES, model["references"])},
+            "interferents": [
+                {"name": n, "reference": sig(r)} for n, r in zip(model["components"][3:], model["references"][3:])
+            ],
             "uncertainty": rmse,
             "pyruvateLod": pyruvate["lod"],
         },
     )
-    write_js("validation", {"calibration": cal, "mixtures": mixtures, "pyruvate": pyruvate, "rmse": rmse})
+    libtest = library_test(standards, model)
+    write_js("validation", {"calibration": cal, "mixtures": mixtures, "pyruvate": pyruvate, "rmse": rmse, "library": libtest})
 
     spectra = {f"{s['name']}_r{s['rep']}": s for s in load_folder(DATA / "mixtures")}
 
@@ -205,6 +250,7 @@ def main():
     )
 
     print("Reference model: standards 0-%g mM, fit window %g-%g cm-1" % (MAX_STANDARD_MM, *FIT_RANGE))
+    print("Other compounds in the library: " + (", ".join(model["components"][3:]) or "none"))
     print("\nMixtures (mean of replicates): measured / known, mM")
     for row in mixtures:
         cells = "  ".join(f"{row['measured'][a]:6.3f}/{row['known'][a]:<6g}" for a in ANALYTES)
@@ -214,6 +260,11 @@ def main():
     for a in ANALYTES:
         c = cal[a]
         print(f"Calibration {a} at {c['peak']:.0f} cm-1: {c['slope'] * 1000:.2f} mAU/mM, R2 {c['r2']:.4f}")
+    print(f"\nLibrary test, mixtures A-E + {' or '.join('%g' % a for a in TEST_AMOUNTS)} mM made-up compound (max error):")
+    for key, r in libtest["results"].items():
+        e = r["maxError"]
+        print(f"  {key:7} library: glucose {e['glucose']:.2f}, lactate {e['lactate']:.2f} mM, "
+              f"pyruvate {e['pyruvate'] * 1000:.0f} uM; reported {r['reported']}/{libtest['n']}")
     patient_comparison(model)
 
 
