@@ -5,7 +5,7 @@
 //   series: [{x, y, color, width, dash, label, points, hollow, line, fill}],
 //     hollow: per-point booleans, drawn as open circles
 //   markers: [{x, label, color}],      vertical lines (peak positions)
-//   thresholds: [{y, label, color}],   horizontal lines
+//   thresholds: [{y, label, color, labelColor}],   horizontal lines
 //   band: {x0, x1, label},             shaded x range
 //   hover: true, tooltipFormat: function (row) -> string
 // })
@@ -142,7 +142,7 @@
       if (t.y < y0 || t.y > y1) return;
       el("line", { x1: m.left, x2: m.left + w, y1: sy(t.y), y2: sy(t.y), class: "chart-threshold", style: "stroke:" + (t.color || "var(--warning)") }, svg);
       if (t.label) {
-        el("text", { x: m.left + w - 4, y: sy(t.y) - 4, class: "chart-threshold-label", "text-anchor": "end", style: "fill:" + (t.color || "var(--warning)") }, svg).textContent = t.label;
+        el("text", { x: m.left + w - 4, y: sy(t.y) - 4, class: "chart-threshold-label", "text-anchor": "end", style: "fill:" + (t.labelColor || t.color || "var(--warning)") }, svg).textContent = t.label;
       }
     });
 
@@ -178,7 +178,7 @@
         s.x.forEach(function (xv, i) {
           if (s.y[i] === null || !isFinite(s.y[i])) return;
           var hollow = s.hollow ? s.hollow[i] : false;
-          el("circle", { cx: sx(xv), cy: sy(s.y[i]), r: s.radius || 3, class: "chart-point", style: "stroke:" + color + ";fill:" + (hollow ? "var(--surface)" : color) }, svg);
+          el("circle", { cx: sx(xv), cy: sy(s.y[i]), r: s.radius || 3.5, class: "chart-point", style: "stroke:" + color + ";fill:" + (hollow ? "var(--surface)" : color) }, svg);
         });
       }
     });

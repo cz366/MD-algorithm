@@ -35,6 +35,10 @@
     return node;
   }
 
+  function th(label, unit, attrs) {
+    return h("th", attrs || {}, [label, unit ? h("span", { class: "u", text: " " + unit }) : null]);
+  }
+
   function fmt(metric, v) {
     if (v === null || v === undefined || !isFinite(v)) return "—";
     if (metric === "glucose" || metric === "lactate") return v.toFixed(2);
@@ -220,15 +224,17 @@
     ]);
     var hours = bed.samples.map(function (s) { return s.hour; });
     var t = C.THRESHOLDS;
+    function warn(y, label) { return { y: y, label: label, color: "var(--warning)", labelColor: "var(--warning-text)" }; }
+    function crit(y, label) { return { y: y, label: label, color: "var(--critical)" }; }
     var lines = {
-      glucose: [{ y: t.glucose.low, label: "0.8", color: "var(--warning)" }, { y: t.glucose.critical, label: "0.2", color: "var(--critical)" }],
-      lactate: [{ y: t.lactate.high, label: "4", color: "var(--warning)" }],
-      pyruvate: [{ y: t.pyruvate.low, label: "70", color: "var(--warning)" }],
-      lpr: [{ y: t.lpr.raised, label: "25", color: "var(--warning)" }, { y: t.lpr.crisis, label: "40", color: "var(--critical)" }]
+      glucose: [warn(t.glucose.low, "0.8"), crit(t.glucose.critical, "0.2")],
+      lactate: [warn(t.lactate.high, "4")],
+      pyruvate: [warn(t.pyruvate.low, "70")],
+      lpr: [warn(t.lpr.raised, "25"), crit(t.lpr.crisis, "40")]
     };
     METRICS.forEach(function (m) {
       var box = h("div");
-      grid.appendChild(h("div", {}, [h("div", { class: "trend-title", text: NAMES[m] + (UNITS[m] ? " (" + UNITS[m] + ")" : "") }), box]));
+      grid.appendChild(h("div", {}, [h("div", { class: "trend-title" }, [NAMES[m] + " ", h("span", { text: UNITS[m] })]), box]));
       // Values known only as a limit are drawn at the limit as open circles.
       var ys = bed.samples.map(function (s) {
         var v = s.values;
@@ -242,7 +248,7 @@
         MDChart.render(box, {
           height: 150,
           series: [{
-            x: hours, y: ys, color: COLORS[m], width: 2, points: true, hollow: bounds, label: NAMES[m],
+            x: hours, y: ys, color: COLORS[m], width: 2.5, points: true, hollow: bounds, label: NAMES[m],
             format: function (v) { return fmt(m, v) + (UNITS[m] ? " " + UNITS[m] : ""); }
           }],
           thresholds: lines[m],
@@ -273,7 +279,7 @@
       h("div", { class: "panel-head" }, [h("h3", { text: "Samples" }), h("span", { class: "sub", text: "Select a row to view it" })]),
       h("div", { class: "table-wrap" }, [h("table", {}, [
         h("thead", {}, [h("tr", {}, [
-          h("th", { text: "Time" }), h("th", { text: "Glc" }), h("th", { text: "Lac" }), h("th", { text: "Pyr µM" }), h("th", { text: "LPR" }), h("th", { class: "left", text: "Assessment" })
+          th("Time"), th("Glucose", "mmol/L"), th("Lactate", "mmol/L"), th("Pyruvate", "µmol/L"), th("LPR"), th("Assessment", null, { class: "left" })
         ])]),
         h("tbody", {}, rows)
       ])])
@@ -298,7 +304,8 @@
     detail.appendChild(metricTiles(s));
     detail.appendChild(interpretation(s));
     detail.appendChild(trendPanel(bed, s));
-    detail.appendChild(h("div", { class: "grid-wide" }, [spectrumPanel(s, "Spectrum at " + s.time), samplesTable(bed, s)]));
+    detail.appendChild(spectrumPanel(s, "Spectrum at " + s.time));
+    detail.appendChild(samplesTable(bed, s));
   }
 
   // ---------- analyse view ----------
@@ -488,8 +495,8 @@
     root.appendChild(panel("Validation: lab mixtures", "Measured 9 Oct 2024 on a different sensor and day from the standards. Mean of 3 replicates.", [
       h("div", { class: "table-wrap" }, [h("table", {}, [
         h("thead", {}, [
-          h("tr", {}, [h("th", { text: "" }), h("th", { colspan: "2", text: "Glucose (mmol/L)" }), h("th", { colspan: "2", text: "Lactate (mmol/L)" }), h("th", { colspan: "2", text: "Pyruvate (µmol/L)" }), h("th", { colspan: "2", text: "LPR" }), h("th", { text: "Fit" })]),
-          h("tr", {}, [h("th", { text: "Sample" }), h("th", { text: "known" }), h("th", { text: "measured" }), h("th", { text: "known" }), h("th", { text: "measured" }), h("th", { text: "known" }), h("th", { text: "measured" }), h("th", { text: "known" }), h("th", { text: "measured" }), h("th", { text: "× noise" })])
+          h("tr", {}, [h("th", { text: "" }), th("Glucose", "mmol/L", { colspan: "2" }), th("Lactate", "mmol/L", { colspan: "2" }), th("Pyruvate", "µmol/L", { colspan: "2" }), h("th", { colspan: "2", text: "LPR" }), h("th", { text: "Fit" })]),
+          h("tr", {}, [h("th", { text: "Sample" }), h("th", { text: "known" }), h("th", { text: "measured" }), h("th", { text: "known" }), h("th", { text: "measured" }), h("th", { text: "known" }), h("th", { text: "measured" }), h("th", { text: "known" }), h("th", { text: "measured" }), th("Residual", "× noise")])
         ]),
         h("tbody", {}, rows)
       ])]),
