@@ -33,14 +33,14 @@ MIXTURE_LABELS = {
 }
 TEST_MIXTURES = ["SampleA", "SampleB", "SampleC", "SampleD", "SampleE"]
 
-# Demo beds for the web app. Every point is a measured spectrum of a lab
-# mixture (data/mixtures); only the bed and time are made up.
-DEMO_BEDS = [
-    ("Bed 1", ["SampleB_r1", "SampleC_r1", "SampleB_r2", "SampleC_r2"]),
-    ("Bed 2", ["SampleC_r3", "SampleD_r1", "SampleD_r2", "SampleD_r3", "SampleE_r1", "SampleE_r2"]),
-    ("Bed 3", ["SampleB_r3", "SampleA_r1", "SampleA_r2", "SampleA_r3"]),
-]
-DEMO_LAST_HOUR = 14
+# Demo for the web app: one bed on continuous monitoring. Every reading is a
+# measured spectrum of a lab mixture (data/mixtures); only the bed and the
+# times are made up. The last reading (mixture E) is the flagged one.
+DEMO_BED = "Bed 1"
+DEMO_READINGS = ["SampleB_r1", "SampleB_r2", "SampleB_r3", "SampleC_r1", "SampleC_r2", "SampleC_r3", "SampleE_r1"]
+DEMO_START = (13, 0)  # time of the first reading
+DEMO_INTERVAL_MIN = 10  # one reading every 10 min
+DEMO_EXAMPLES = ["SampleA_r1", "SampleB_r1", "SampleC_r1", "SampleD_r1", "SampleE_r1"]
 
 
 def sig(values, digits=6):
@@ -182,23 +182,27 @@ def main():
     write_js("validation", {"calibration": cal, "mixtures": mixtures, "pyruvate": pyruvate, "rmse": rmse})
 
     spectra = {f"{s['name']}_r{s['rep']}": s for s in load_folder(DATA / "mixtures")}
-    beds = []
-    for bed, keys in DEMO_BEDS:
-        first = DEMO_LAST_HOUR - len(keys) + 1
-        samples = []
-        for i, key in enumerate(keys):
-            s = spectra[key]
-            samples.append(
-                {
-                    "time": f"{first + i:02d}:00",
-                    "file": s["file"],
-                    "source": MIXTURE_LABELS[s["name"]],
-                    "wavenumber": sig(s["wavenumber"]),
-                    "absorbance": sig(s["absorbance"]),
-                }
-            )
-        beds.append({"bed": bed, "samples": samples})
-    write_js("demo", {"beds": beds})
+
+    def entry(key):
+        s = spectra[key]
+        return {
+            "file": s["file"],
+            "source": MIXTURE_LABELS[s["name"]],
+            "wavenumber": sig(s["wavenumber"]),
+            "absorbance": sig(s["absorbance"]),
+        }
+
+    readings = []
+    for i, key in enumerate(DEMO_READINGS):
+        minutes = DEMO_START[0] * 60 + DEMO_START[1] + i * DEMO_INTERVAL_MIN
+        readings.append({"time": f"{minutes // 60:02d}:{minutes % 60:02d}", **entry(key)})
+    write_js(
+        "demo",
+        {
+            "beds": [{"bed": DEMO_BED, "interval": DEMO_INTERVAL_MIN, "samples": readings}],
+            "examples": [entry(key) for key in DEMO_EXAMPLES],
+        },
+    )
 
     print("Reference model: standards 0-%g mM, fit window %g-%g cm-1" % (MAX_STANDARD_MM, *FIT_RANGE))
     print("\nMixtures (mean of replicates): measured / known, mM")

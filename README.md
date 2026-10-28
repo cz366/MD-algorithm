@@ -2,9 +2,10 @@
 
 Metabolite decipher in traumatic brain injured patients.
 
-Turns mid-infrared spectra of cerebral microdialysate into glucose, lactate,
-pyruvate and the lactate/pyruvate ratio (LPR), and shows them on a web page
-for clinicians and nurses.
+A mid-infrared sensor coupled to cerebral microdialysis gives continuous
+readings instead of hourly bedside analysis. This repository turns each
+spectrum into glucose, lactate, pyruvate and the lactate/pyruvate ratio (LPR),
+and shows them on a web page for clinicians and nurses.
 
 ![Patients view](docs/patients.png)
 
@@ -28,9 +29,11 @@ python -m pytest
 
 ## Web page
 
-- **Patients**: latest values, alert pattern, hourly trends and the spectrum
-  with the fitted compounds. The demo beds use measured spectra of lab
-  mixtures, not patient samples.
+- **Patients**: one bed on continuous monitoring, a reading every 10 min.
+  Latest values, alert pattern, a response guide for flagged readings, trends
+  and the spectrum with the fitted compounds. The readings are measured
+  spectra of lab mixtures B, C and E, not patient samples; bed and times are
+  made up. Only the last reading (critically low brain glucose) is flagged.
 - **Analyse sample**: drop a sensor CSV file to get a result. Files are
   processed in the browser and not sent anywhere.
 - **Method**: reference spectra, calibration, validation and thresholds.
@@ -46,6 +49,11 @@ python -m pytest
    model does not know. No values are reported.
 5. LPR = lactate / pyruvate. If pyruvate is below the detection limit, LPR is
    shown as a lower bound.
+6. Flag the reading. Critical thresholds (glucose < 0.2 mmol/L, LPR > 40) flag
+   on the measured value. Warning thresholds flag only when the value is past
+   them by more than its measurement error; otherwise the value is shown as
+   near threshold. This stops readings with an uncertain LPR from raising
+   alarms.
 
 The fit runs in Python (`mdalgo/model.py`) and in the browser
 (`web/js/fit.js`). A test checks that both give the same numbers.
@@ -92,6 +100,38 @@ Set in `web/js/clinical.js`.
 Sources: Hutchinson et al., Intensive Care Med 2015;41:1517–28 (2014
 International Microdialysis Forum consensus); Nielsen et al., Acta
 Anaesthesiol Scand 2013; Reinstrup et al., Neurosurgery 2000.
+
+## Response guides
+
+Flagged readings show what to do, with sources. Text and references are in
+`web/js/clinical.js`.
+
+**Low brain glucose**
+
+1. Confirm the reading: next reading, catheter, pump, tubing, check standard.
+   If lactate and pyruvate are also very low, suspect a sampling fault.
+2. Check blood glucose and insulin. Tight control (4.4–6.1 mmol/L) gives more
+   low brain glucose and metabolic crisis (Oddo 2008; Vespa 2012; Plummer 2018).
+3. Blood glucose below 6 mmol/L or a tight target: reduce insulin, aim for
+   6–10 mmol/L, feed or give glucose (Meierhans 2010; NICE-SUGAR 2009;
+   Kofler 2017).
+4. Blood glucose already 6–10 mmol/L: treat ICP > 20 mmHg, bring PbtO₂ to
+   ≥ 15 mmHg, keep CPP 60–70 mmHg or where PRx ≤ 0.3, aim for brain glucose
+   ≥ 1 mmol/L, check the EEG for seizures (Khellaf 2022; Carney 2017;
+   Hutchinson 2015; Sharma 2023).
+5. Follow the next readings.
+
+**Raised LPR**
+
+1. Confirm the reading.
+2. Correct supply in the same order as above (Khellaf 2022).
+3. LPR still > 25: mitochondrial dysfunction. No standard treatment; focal
+   succinate lowered LPR by 12% and raised brain glucose by 17% in a small
+   study (Khellaf 2022).
+4. Follow the next readings.
+
+Continuous monitoring follows Zimphango et al., Metabolites 2022: hourly
+bedside analysis misses changes within the hour.
 
 ## Limits
 

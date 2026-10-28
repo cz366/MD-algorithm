@@ -52,17 +52,12 @@
     return fmt(metric, v[metric]);
   }
 
-  // Typical error from the mixture validation, shown next to each value.
+  // Measurement error from the mixture validation, shown next to each value.
   function uncertainty(metric, v) {
-    var u = model.uncertainty;
     if (!v.fitOk) return "";
-    if (metric === "glucose" || metric === "lactate") return "± " + u[metric].toFixed(2);
-    if (metric === "pyruvate") return v.pyruvateBelowLod ? "" : "± " + (u.pyruvate * 1000).toFixed(0);
-    if (metric === "lpr" && v.lpr !== null && !v.lprLowerBound && v.lactate > 0) {
-      var rel = Math.sqrt(Math.pow(u.lactate / v.lactate, 2) + Math.pow(u.pyruvate * 1000 / v.pyruvate, 2));
-      return "± " + (v.lpr * rel).toFixed(0);
-    }
-    return "";
+    if (metric === "pyruvate" && v.pyruvateBelowLod) return "";
+    if (metric === "lpr" && (v.lpr === null || v.lprLowerBound || !v.error.lpr)) return "";
+    return "± " + fmt(metric, v.error[metric]);
   }
 
   function reference(metric) {
@@ -76,7 +71,8 @@
   function analyse(wavenumber, absorbance) {
     var fit = F.fit(wavenumber, absorbance, model);
     var v = C.values(fit, model);
-    return { fit: fit, values: v, assessment: C.assess(v), caveats: C.caveats(v) };
+    var a = C.assess(v);
+    return { fit: fit, values: v, assessment: a, caveats: C.caveats(v), guide: C.guide(v, a) };
   }
 
   function summary(r) {
@@ -114,6 +110,31 @@
     }
     r.caveats.forEach(function (c) { body.push(h("p", { class: "caveat", text: c })); });
     return h("div", { class: "panel interp" }, body);
+  }
+
+  function guidePanel(r) {
+    var g = r.guide;
+    return h("div", { class: "panel guide" }, [
+      h("div", { class: "panel-head" }, [h("h3", { text: g.title }), h("span", { class: "sub", text: "From the literature" })]),
+      h("div", { class: "panel-body" }, [
+        h("ol", { class: "guide-steps" }, g.steps.map(function (s, i) {
+          return h("li", {}, [
+            h("span", { class: "guide-n", text: String(i + 1) }),
+            h("div", {}, [
+              h("div", { class: "guide-head", text: s.head }),
+              h("p", { class: "guide-text", text: s.text }),
+              s.note ? h("p", { class: "guide-note", text: s.note }) : null,
+              s.refs.length ? h("p", { class: "guide-refs", text: s.refs.join(" · ") }) : null
+            ])
+          ]);
+        })),
+        h("p", { class: "note", text: g.note }),
+        h("details", { class: "refs" }, [
+          h("summary", { text: "References" }),
+          h("ol", {}, g.references.map(function (t) { return h("li", { text: t }); }))
+        ])
+      ])
+    ]);
   }
 
   function legend(items) {
@@ -190,19 +211,28 @@
 
   // ---------- patients view ----------
 
+  function clock(minutes) {
+    var hh = Math.floor(minutes / 60), mm = minutes % 60;
+    return (hh < 10 ? "0" : "") + hh + ":" + (mm < 10 ? "0" : "") + mm;
+  }
+
   var beds = demo.beds.map(function (bed) {
     return {
       name: bed.bed,
+      interval: bed.interval,
       samples: bed.samples.map(function (s) {
         var r = analyse(s.wavenumber, s.absorbance);
+        var hm = s.time.split(":");
         r.time = s.time;
-        r.hour = parseInt(s.time, 10);
+        r.minutes = parseInt(hm[0], 10) * 60 + parseInt(hm[1], 10);
         r.file = s.file;
         r.source = s.source;
         return r;
       })
     };
   });
+
+  function flagged(s) { return s.assessment.level === "critical" || s.assessment.level === "warning"; }
 
   function renderBedList() {
     var list = document.getElementById("bed-list");
@@ -220,15 +250,30 @@
         h("span", { class: "bed-status", text: last.assessment.title })
       ]));
     });
+    var bed = beds[state.bed];
+    var rows = [
+      ["Monitoring", "Mid-IR sensor on microdialysis"],
+      ["Interval", "Every " + bed.interval + " min"],
+      ["First reading", bed.samples[0].time],
+      ["Readings", String(bed.samples.length)],
+      ["Flagged", String(bed.samples.filter(flagged).length)]
+    ];
+    var dl = document.getElementById("monitor");
+    dl.innerHTML = "";
+    rows.forEach(function (r) {
+      dl.appendChild(h("dt", { text: r[0] }));
+      dl.appendChild(h("dd", { text: r[1] }));
+    });
   }
 
   function trendPanel(bed, selected) {
     var grid = h("div", { class: "trend-grid" });
     var panel = h("div", { class: "panel" }, [
-      h("div", { class: "panel-head" }, [h("h3", { text: "Trends" }), h("span", { class: "sub", text: "Hourly samples. Dashed lines: alert thresholds. Open circles: value at or beyond a detection limit." })]),
+      h("div", { class: "panel-head" }, [h("h3", { text: "Trends" }), h("span", { class: "sub", text: "One reading every " + bed.interval + " min. Dashed lines: alert thresholds. Open circles: value at a detection limit." })]),
       h("div", { class: "panel-body" }, [grid])
     ]);
-    var hours = bed.samples.map(function (s) { return s.hour; });
+    var times = bed.samples.map(function (s) { return s.minutes; });
+    var half = bed.interval / 2;
     var t = C.THRESHOLDS;
     function warn(y, label) { return { y: y, label: label, color: "var(--warning)", labelColor: "var(--warning-text)" }; }
     function crit(y, label) { return { y: y, label: label, color: "var(--critical)" }; }
@@ -252,14 +297,14 @@
       });
       requestAnimationFrame(function () {
         MDChart.render(box, {
-          height: 150,
+          height: 170,
           series: [{
-            x: hours, y: ys, color: COLORS[m], width: 2.5, points: true, hollow: bounds, label: NAMES[m],
+            x: times, y: ys, color: COLORS[m], width: 2.5, points: true, hollow: bounds, label: NAMES[m],
             format: function (v) { return fmt(m, v) + (UNITS[m] ? " " + UNITS[m] : ""); }
           }],
           thresholds: lines[m],
-          band: { x0: selected.hour - 0.18, x1: selected.hour + 0.18 },
-          x: { min: hours[0] - 0.4, max: hours[hours.length - 1] + 0.4, ticks: hours, format: function (v) { return (v < 10 ? "0" : "") + v + ":00"; } },
+          band: { x0: selected.minutes - half * 0.4, x1: selected.minutes + half * 0.4 },
+          x: { min: times[0] - half, max: times[times.length - 1] + half, ticks: times, format: clock },
           y: { zero: true }
         });
       });
@@ -273,16 +318,16 @@
       var cells = [h("td", { text: s.time })];
       METRICS.forEach(function (m) {
         var st = s.values.fitOk ? C.status(m, s.values) : { level: "none" };
-        cells.push(h("td", { class: st.level === "normal" || st.level === "none" ? "" : st.level, text: display(m, s.values) }));
+        cells.push(h("td", { class: st.level === "critical" || st.level === "warning" ? st.level : "", text: display(m, s.values) }));
       });
       cells.push(h("td", { class: "left wrap" }, [h("span", { class: "dot " + s.assessment.level, style: "display:inline-block;width:8px;height:8px;margin-right:6px" }), s.assessment.title]));
       return h("tr", {
         class: "clickable", "aria-current": s === selected ? "true" : "false",
-        onclick: function () { state.sample = idx; renderPatients(); }
+        onclick: function () { state.sample = idx; renderPatients(); window.scrollTo({ top: 0, behavior: "smooth" }); }
       }, cells);
     });
     return h("div", { class: "panel" }, [
-      h("div", { class: "panel-head" }, [h("h3", { text: "Samples" }), h("span", { class: "sub", text: "Select a row to view it" })]),
+      h("div", { class: "panel-head" }, [h("h3", { text: "Readings" }), h("span", { class: "sub", text: "Select a row to view it" })]),
       h("div", { class: "panel-body" }, [h("div", { class: "table-wrap" }, [h("table", {}, [
         h("thead", {}, [h("tr", {}, [
           th("Time"), th("Glucose", "mmol/L"), th("Lactate", "mmol/L"), th("Pyruvate", "µmol/L"), th("LPR"), th("Assessment", null, { class: "left" })
@@ -303,12 +348,13 @@
     detail.appendChild(h("div", { class: "result-head" }, [
       h("div", {}, [
         h("h2", { text: bed.name }),
-        h("div", { class: "meta", text: "Sample " + s.time + (latest ? " (latest)" : "") + " · source: " + s.source + ", " + s.file })
+        h("div", { class: "meta", text: "Reading " + s.time + (latest ? " (latest)" : "") + " · source: " + s.source + ", " + s.file })
       ]),
       h("span", { class: "pill " + s.assessment.level, text: s.assessment.title })
     ]));
     detail.appendChild(metricTiles(s));
     detail.appendChild(interpretation(s));
+    if (s.guide) detail.appendChild(guidePanel(s));
     detail.appendChild(trendPanel(bed, s));
     detail.appendChild(spectrumPanel(s, "Spectrum at " + s.time));
     detail.appendChild(samplesTable(bed, s));
@@ -381,6 +427,7 @@
     ]));
     detail.appendChild(metricTiles(r));
     detail.appendChild(interpretation(r));
+    if (r.guide) detail.appendChild(guidePanel(r));
     detail.appendChild(spectrumPanel(r));
     detail.appendChild(fullSpectrumPanel(u.wavenumber, u.absorbance));
   }
@@ -397,15 +444,7 @@
     });
     zone.addEventListener("drop", function (e) { if (e.dataTransfer.files.length) readFiles(e.dataTransfer.files); });
     document.getElementById("load-examples").addEventListener("click", function () {
-      var seen = {};
-      demo.beds.forEach(function (bed) {
-        bed.samples.forEach(function (s) {
-          var key = s.source;
-          if (seen[key]) return;
-          seen[key] = true;
-          addUpload(s.file, s.wavenumber, s.absorbance);
-        });
-      });
+      demo.examples.forEach(function (s) { addUpload(s.file, s.wavenumber, s.absorbance); });
       renderAnalyse();
     });
   }
@@ -427,7 +466,7 @@
 
     root.appendChild(h("div", { class: "method-intro" }, [
       h("h1", { text: "Method" }),
-      h("p", { text: "The sensor records a mid-infrared absorbance spectrum of the microdialysate. Glucose, lactate and pyruvate each absorb at their own wavenumbers. The algorithm fits the reference spectrum of each compound to the sample spectrum and reports the concentrations." })
+      h("p", { text: "A mid-infrared sensor coupled to the microdialysis catheter records the absorbance spectrum of the microdialysate continuously, instead of hourly bedside analysis. Glucose, lactate and pyruvate each absorb at their own wavenumbers. The algorithm fits the reference spectrum of each compound to each reading and reports the concentrations." })
     ]));
 
     root.appendChild(panel("Processing steps", null, [h("ol", { class: "steps" }, [
@@ -436,7 +475,7 @@
       "Fit the sample as the sum of the three reference spectra plus a straight baseline. Concentrations cannot be negative.",
       "Check the fit. If the residual is more than " + model.qualityLimit + "× the noise, the sample contains something the model does not know and no values are reported.",
       "Compute LPR = lactate / pyruvate. If pyruvate is below the detection limit (" + lod.toFixed(0) + " µmol/L), LPR is shown as a lower bound.",
-      "Compare each value with the thresholds below."
+      "Compare each value with the thresholds below. Critical thresholds (glucose below 0.2 mmol/L, LPR above 40) flag on the measured value. The others flag only when the value is past them by more than its measurement error (the ± value); otherwise it is shown as near threshold."
     ].map(function (t, i) {
       return h("li", {}, [h("span", { class: "step-n", text: "Step " + (i + 1) }), t]);
     }))]));
@@ -543,7 +582,7 @@
       ["Pyruvate", "< " + t.pyruvate.low + " µmol/L", "With raised LPR: ischaemic pattern. Above: mitochondrial dysfunction", "Nielsen et al. 2013"],
       ["Lactate", "> " + t.lactate.high + " mmol/L", "High", "Reinstrup et al. 2000 (normal 2.9 ± 0.9)"]
     ];
-    root.appendChild(panel("Thresholds", "Set in web/js/clinical.js", [
+    root.appendChild(panel("Thresholds", "Set in web/js/clinical.js, with the response guides", [
       h("div", { class: "table-wrap" }, [h("table", {}, [
         h("thead", {}, [h("tr", {}, ["Measure", "Threshold", "Meaning", "Source"].map(function (c) { return h("th", { class: "left", text: c }); }))]),
         h("tbody", {}, thr.map(function (r) { return h("tr", {}, r.map(function (c) { return h("td", { class: "left", text: c }); })); }))
